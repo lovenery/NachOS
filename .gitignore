@@ -1,0 +1,17 @@
+code/*/*.o
+
+code/bin/coff2noff
+code/filesys/nachos
+code/filesys/swtch.s
+code/network/nachos
+code/network/swtch.s
+code/test/halt.coff
+code/test/matmult.coff
+code/test/shell.coff
+code/test/sort.coff
+code/test/test1.coff
+code/test/test2.coff
+code/threads/nachos
+code/threads/swtch.s
+code/userprog/nachos
+code/userprog/swtch.s
