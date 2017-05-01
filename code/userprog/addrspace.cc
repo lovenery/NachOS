@@ -51,8 +51,14 @@ SwapHeader (NoffHeader *noffH)
 //	only uniprogramming, and we have a single unsegmented page table
 //----------------------------------------------------------------------
 
+// ADD_TAG
+// 初始化剛剛定義的usedPhyPage，讓下面可以用usedPhyPage
+bool AddrSpace::usedPhyPage[NumPhysPages];
+
 AddrSpace::AddrSpace()
 {
+// ADD_TAG
+/*
     pageTable = new TranslationEntry[NumPhysPages];
     for (unsigned int i = 0; i < NumPhysPages; i++) {
 	pageTable[i].virtualPage = i;	// for now, virt page # = phys page #
@@ -64,7 +70,7 @@ AddrSpace::AddrSpace()
 	pageTable[i].dirty = FALSE;
 	pageTable[i].readOnly = FALSE;  
     }
-    
+*/  
     // zero out the entire address space
 //    bzero(kernel->machine->mainMemory, MemorySize);
 }
@@ -76,6 +82,11 @@ AddrSpace::AddrSpace()
 
 AddrSpace::~AddrSpace()
 {
+    // ADD_TAG
+    // 最後要把記憶體的空間給釋放出來
+    for(int x=0;x<numPages;x++){
+        usedPhyPage[pageTable[x].physicalPage] = FALSE;
+    }
    delete pageTable;
 }
 
@@ -113,6 +124,23 @@ AddrSpace::Load(char *fileName)
 						// to leave room for the stack
     numPages = divRoundUp(size, PageSize);
 //	cout << "number of pages of " << fileName<< " is "<<numPages<<endl;
+
+    // ADD_TAG
+    pageTable = new TranslationEntry[numPages];
+    for (unsigned int i = 0,j = 0; i < numPages; i++) {
+        pageTable[i].virtualPage = i; // for now, virt page # = phys page #
+        while(usedPhyPage[j++] == TRUE){}
+        //因為不知道在addrspace.h裡定義的usedPhyPage[NumPhysPages]陣列裡的值到底是什麼,所以就讓usedPhyPage陣列裡的值在每次加一的時候,都設定為TRUE
+        //取適當的pageTable去做分配
+        usedPhyPage[j-1] = TRUE;
+        pageTable[i].physicalPage = j-1;
+        pageTable[i].valid = TRUE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE; 
+    }
+
+
     size = numPages * PageSize;
 
     ASSERT(numPages <= NumPhysPages);		// check we're not trying
@@ -123,20 +151,25 @@ AddrSpace::Load(char *fileName)
     DEBUG(dbgAddr, "Initializing address space: " << numPages << ", " << size);
 
 // then, copy in the code and data segments into memory
+
+    // ADD_TAG
+    //把原本直接放到virtual的address,改成對應physical的address
+    //= physical page + virtual address offset
 	if (noffH.code.size > 0) {
         DEBUG(dbgAddr, "Initializing code segment.");
 	DEBUG(dbgAddr, noffH.code.virtualAddr << ", " << noffH.code.size);
         	executable->ReadAt(
-		&(kernel->machine->mainMemory[noffH.code.virtualAddr]), 
+		&(kernel->machine->mainMemory[pageTable[noffH.code.virtualAddr/PageSize].physicalPage*PageSize+(noffH.code.virtualAddr%PageSize)]), 
 			noffH.code.size, noffH.code.inFileAddr);
     }
 	if (noffH.initData.size > 0) {
         DEBUG(dbgAddr, "Initializing data segment.");
 	DEBUG(dbgAddr, noffH.initData.virtualAddr << ", " << noffH.initData.size);
         executable->ReadAt(
-		&(kernel->machine->mainMemory[noffH.initData.virtualAddr]),
+		&(kernel->machine->mainMemory[pageTable[noffH.initData.virtualAddr/PageSize].physicalPage*PageSize+(noffH.code.virtualAddr%PageSize)]),
 			noffH.initData.size, noffH.initData.inFileAddr);
     }
+
 
     delete executable;			// close file
     return TRUE;			// success

@@ -29,6 +29,7 @@ class AddrSpace {
 
     void SaveState();			// Save/restore address space-specific
     void RestoreState();		// info on a context switch 
+    static bool usedPhyPage[NumPhysPages]; //用來記錄已經被使用過的physical page
 
   private:
     TranslationEntry *pageTable;	// Assume linear page table translation
