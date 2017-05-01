@@ -46,13 +46,16 @@ Alarm::Alarm(bool doRandom)
 //	interrupts.  In this case, we can safely halt.
 //----------------------------------------------------------------------
 
+// kernel有alarm，代表每隔固定一段間，就會呼叫Alarm::CallBack()
 void 
 Alarm::CallBack() 
 {
     Interrupt *interrupt = kernel->interrupt;
     MachineStatus status = interrupt->getStatus();
-    
-    if (status == IdleMode) {	// is it time to quit?
+    bool woken = _bedroom.MorningCall(); // PROJECT2
+
+    // PROJECT2: add && !woken && _bedroom.IsEmpty()
+    if (status == IdleMode && !woken && _bedroom.IsEmpty()) {	// is it time to quit?
         if (!interrupt->AnyFutureInterrupts()) {
 	    timer->Disable();	// turn off the timer
 	}
@@ -61,3 +64,49 @@ Alarm::CallBack()
     }
 }
 
+// PROJECT2
+void Alarm::WaitUntil(int x) {
+    // turn off interrupt temporarily.
+    IntStatus oldLevel = kernel->interrupt->SetLevel(IntOff);
+    Thread* t = kernel->currentThread;
+
+    cout << "Thread " << (int)t << " go sleep" << endl;
+    
+    _bedroom.PutToBed(t, x);
+    kernel->interrupt->SetLevel(oldLevel); // set the original interrupt level back.
+}
+
+// PROJECT2
+bool Bedroom::IsEmpty() {
+    return _beds.size() == 0;
+}
+
+// 某一時間 time = _current_interrupt 呼叫 Sleep(x) 後，
+// 將 (Thread address, _current_interrupt + x) 丟入 List，
+// 期望在 _current_interrupt + x 的時候甦醒。
+// PROJECT2
+void Bedroom::PutToBed(Thread* t, int x) {
+    ASSERT(kernel->interrupt->getLevel() == IntOff);
+    _beds.push_back(Bed(t, _current_interrupt + x));
+    t->Sleep(false);
+}
+
+// 每當 _current_interrupt++ 就去檢查 List 中，誰的預期時間小於 _current_interrupt，就將其從 List 中清除。
+// PROJECT2
+bool Bedroom::MorningCall() {
+    bool woken = false;
+
+    _current_interrupt++;
+
+    for(std::list<Bed>::iterator it = _beds.begin(); it != _beds.end(); ) {
+        if(_current_interrupt >= it->when) {
+            woken = true;
+            cout << "Bedroom::MorningCall Thread woken" << endl;
+            kernel->scheduler->ReadyToRun(it->sleeper);
+            it = _beds.erase(it);
+        } else {
+            it++;
+        }
+    }
+    return woken;
+}
